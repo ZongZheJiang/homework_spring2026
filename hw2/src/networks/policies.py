@@ -60,10 +60,10 @@ class MLPPolicy(nn.Module):
     def get_action(self, obs: np.ndarray) -> np.ndarray:
         """Takes a single observation (as a numpy array) and returns a single action (as a numpy array)."""
         # TODO: implement get_action
-        action = None
-
-        return action
-
+        action_distribution = self.forward(ptu.from_numpy(obs))
+        action = action_distribution.sample().cpu().numpy().flatten()
+        return action[0] if self.discrete else action
+    
     def forward(self, obs: torch.FloatTensor):
         """
         This function defines the forward pass of the network.  You can return anything you want, but you should be
@@ -72,10 +72,15 @@ class MLPPolicy(nn.Module):
         """
         if self.discrete:
             # TODO: define the forward pass for a policy with a discrete action space.
-            pass
+            logits = self.logits_net(obs)
+            distribution = D.Categorical(logits=logits)
+            return distribution
         else:
             # TODO: define the forward pass for a policy with a continuous action space.
-            pass
+            mean = self.mean_net(obs)
+            std = torch.exp(self.logstd)
+            distribution = D.Normal(mean, std)
+            return distribution
 
     def update(self, obs: np.ndarray, actions: np.ndarray, *args, **kwargs) -> dict:
         """
@@ -98,12 +103,20 @@ class MLPPolicyPG(MLPPolicy):
         obs = ptu.from_numpy(obs)
         actions = ptu.from_numpy(actions)
         advantages = ptu.from_numpy(advantages)
+        optimizer = self.optimizer
+        optimizer.zero_grad()
 
         # TODO: compute the policy gradient actor loss
-        loss = None
+        action_distribution = self.forward(obs)
+        log_prob = action_distribution.log_prob(actions)
+        if not self.discrete:
+            log_prob = log_prob.sum(dim=-1)
+        loss = -log_prob * advantages.flatten()
+        loss = loss.mean()
+        loss.backward()
 
         # TODO: perform an optimizer step
-        pass
+        optimizer.step()
 
         return {
             "Actor Loss": loss.item(),
