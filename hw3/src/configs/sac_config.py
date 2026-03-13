@@ -29,9 +29,9 @@ def sac_config(
     replay_buffer_capacity: int = 1000000,
     ep_len: Optional[int] = None,
     discount: float = 0.99,
-    use_soft_target_update: bool = False,
+    use_soft_target_update: bool = True,
     target_update_period: Optional[int] = None,
-    soft_target_update_rate: Optional[float] = None,
+    soft_target_update_rate: Optional[float] = 0.999,
     # Actor-critic configuration
     num_critic_updates: int = 1,
     # Settings for multiple critics
