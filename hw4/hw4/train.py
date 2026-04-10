@@ -202,7 +202,40 @@ def compute_group_advantages(rewards: torch.Tensor, group_size: int, eps: float 
     #   of your choice for that group
     #
     # Return a flat tensor with the same shape/order as rewards.
-    raise NotImplementedError("student TODO: compute_group_advantages")
+
+    # for g in range(advantages.shape[0]):
+    #     r_g = advantages[g]
+    #     mean_g = r_g.mean()
+    #     std_g = r_g.std(unbiased=False)
+    #     # if std_g < 1e-8:
+    #     #     # If the std is too small, we can end up with huge advantages that destabilize training.
+    #     #     # In this case, we can skip normalization and just use zero-centered rewards as advantages for this group.
+    #     #     advantages[g] = r_g - mean_g
+    #     # else:
+    #     #     advantages[g] = (r_g - mean_g) / (std_g + eps)
+
+    if group_size <= 1:
+        # No grouping, so just normalize the whole batch as one group.
+        mean_reward = rewards.mean()
+        std_reward = rewards.std(unbiased=False)
+        return (rewards - mean_reward) / (std_reward + eps)
+    
+    if rewards.numel() % group_size != 0:
+        raise ValueError(f"Number of rewards ({rewards.numel()}) must be divisible by group_size ({group_size}).")
+    
+
+    rewards_grouped = rewards.view(-1, group_size)
+    mean_reward = rewards_grouped.mean(dim=1, keepdim=True)
+    std_reward = rewards_grouped.std(dim=1, keepdim=True, unbiased=False)
+
+    # KIV
+    if ((std_reward <= 1e-8).any()):
+        # If any group has near-zero std, fallback to normalizing the whole batch together to avoid NaNs/Infs.
+        mean_reward = rewards.mean()
+        std_reward = rewards.std(unbiased=False)
+
+    advantage = (rewards_grouped - mean_reward) / (std_reward + eps)
+    return advantage.view(-1)
 
 
 def maybe_normalize_advantages(advantages: torch.Tensor, enabled: bool, eps: float = 1e-6) -> torch.Tensor:
@@ -211,8 +244,11 @@ def maybe_normalize_advantages(advantages: torch.Tensor, enabled: bool, eps: flo
     # Again use the population standard deviation (unbiased=False).
     # Otherwise return A unchanged.
     # Keep the output shape identical to the input shape.
-    raise NotImplementedError("student TODO: maybe_normalize_advantages")
-
+    if not enabled:
+        return advantages
+    mean_adv = advantages.mean()
+    std_adv = advantages.std(unbiased=True)
+    return (advantages - mean_adv) / (std_adv + eps)
 
 def maybe_update_warmup_lr(optimizer: torch.optim.Optimizer, base_lr: float, step: int, warmup_steps: int) -> None:
     if warmup_steps <= 0:

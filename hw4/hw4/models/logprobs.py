@@ -43,6 +43,17 @@ def compute_per_token_logprobs(
     #
     # Respect enable_grad: when enable_grad=False this function should not build an
     # autograd graph.
+    if not enable_grad:
+        with torch.no_grad():
+            return compute_per_token_logprobs(model, input_ids, attention_mask, enable_grad=True)
+    out = model(input_ids=input_ids, attention_mask=attention_mask, use_cache=False)
+    logits = out.logits  # [B, L, V]
+    targets = input_ids[:, 1:]  # [B, L-1]
+    flattened_logits = logits[:, :-1, :].reshape(-1, logits.shape[-1])  # [(B*(L-1)), V]
+    flattened_targets = targets.reshape(-1)  # [B*(L-1)]
+    per_token_nll = F.cross_entropy(flattened_logits, flattened_targets, reduction='none')  # [B*(L-1)]
+    per_token_logprobs = -per_token_nll.reshape(input_ids.shape[0], input_ids.shape[1] - 1)  # [B, L-1]
+    return per_token_logprobs   
     raise NotImplementedError("student TODO: compute_per_token_logprobs")
 
 
@@ -66,6 +77,12 @@ def build_completion_mask(
     # prompt_input_len is the (padded) prompt length before completion tokens were
     # appended. You can use attention_mask to exclude padding; pad_token_id is passed
     # for convenience but a direct attention-mask-based solution is fine.
+    completion_mask = torch.zeros_like(input_ids, dtype=torch.float32)  # [B, L]
+    for i in range(input_ids.shape[0]):
+        for t in range(input_ids.shape[1]):
+            if t >= prompt_input_len - 1 and input_ids[i, t] != pad_token_id:
+                completion_mask[i, t] = 1.0
+    return completion_mask[:, :-1]  # [B, L-1]
     raise NotImplementedError("student TODO: build_completion_mask")
 
 
@@ -110,4 +127,8 @@ def approx_kl_from_logprobs(
     #                             = KL(p_new || p_ref).
     #
     # The clamp to [-20, 20] is for numerical stability / variance control.
+    delta = torch.clamp(ref_logprobs - new_logprobs, min=-log_ratio_clip, max=log_ratio_clip)
+    per_token = torch.exp(delta) - delta - 1
+    masked_kl = masked_mean(per_token, mask, eps)
+    return masked_kl
     raise NotImplementedError("student TODO: approx_kl_from_logprobs")

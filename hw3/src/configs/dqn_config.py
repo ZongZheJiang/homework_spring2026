@@ -22,7 +22,7 @@ def basic_dqn_config(
     exp_name: Optional[str] = None,
     hidden_size: int = 64,
     num_layers: int = 2,
-    learning_rate: float = 1e-3,
+    learning_rate: float = 5e-4,
     total_steps: int = 1000000,
     discount: float = 0.99,
     target_update_period: int = 1000,
@@ -30,6 +30,7 @@ def basic_dqn_config(
     use_double_q: bool = False,
     learning_starts: int = 20000,
     batch_size: int = 128,
+    lr_scheduler: str = "constant",
     **kwargs
 ):
     def make_critic(observation_shape: Tuple[int, ...], num_actions: int) -> nn.Module:
@@ -46,7 +47,16 @@ def basic_dqn_config(
     def make_lr_schedule(
         optimizer: torch.optim.Optimizer,
     ) -> torch.optim.lr_scheduler._LRScheduler:
-        return torch.optim.lr_scheduler.ConstantLR(optimizer, factor=1.0)
+        if lr_scheduler == 'constant':
+            return torch.optim.lr_scheduler.ConstantLR(optimizer, factor=1.0)
+        elif lr_scheduler == 'linear':
+            return torch.optim.lr_scheduler.LinearLR(optimizer, start_factor=1.0, end_factor=0.0, total_iters=total_steps)
+        elif lr_scheduler == 'cosine':
+            return torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=total_steps)
+        elif lr_scheduler == 'reduce_on_plateau':
+            return torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=10000)
+        else:
+            raise ValueError(f"Unsupported lr_scheduler: {lr_scheduler}")
 
     exploration_schedule = PiecewiseSchedule(
         [

@@ -71,16 +71,17 @@ class DQNAgent(nn.Module):
         # Compute target values
         with torch.no_grad():
             # TODO(Section 2.4): compute target values
-            next_qa_values = self.target_critic(obs)
+            next_qa_values = self.target_critic(next_obs)
 
             if self.use_double_q:
                 # TODO(Section 2.5): implement double-Q target action selection
                 # DQN uses main critic for next action, Standard QN uses target critic for next action
                 next_action = self.critic(next_obs).argmax(dim=-1)
             else:
-                next_action = next_qa_values.argmax(dim=-1)
+                next_action = self.target_critic(next_obs).argmax(dim=-1)
 
-            next_q_values = self.target_critic(next_obs).argmax(dim=-1)
+            next_q_values = next_action.unsqueeze(-1)
+            next_q_values = next_qa_values.gather(dim=-1, index=next_q_values).squeeze(-1)
             assert next_q_values.shape == (batch_size,), next_q_values.shape
 
             # done is a boolean tensor

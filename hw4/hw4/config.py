@@ -31,14 +31,14 @@ class TrainConfig:
     grad_accum_steps: int = 1
 
     # RL update hyperparameters
-    algo: str = "grpo"      # reinforce | grpo
+    algo: str = "reinforce"      # reinforce | grpo
     ppo_epochs: int = 1  # used by GRPO; REINFORCE requires 1
     minibatch_size: int = 8
     clip_eps: float = 0.1
     kl_coef: float = 0.05
     max_grad_norm: float = 0.5
     adv_clip: float = 5.0
-    normalize_advantages: bool = False
+    normalize_advantages: bool = True
 
     # LoRA adapter config
     lora_r: int = 16
